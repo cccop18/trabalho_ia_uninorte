@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Jogo do Robô</title>
+<style>
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: #ffffff;
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px 0;
+}
+.container {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    padding: 30px;
+    border-radius: 20px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+h1 { margin-top: 0; font-weight: 600; }
+p { font-size: 16px; color: #e0e0e0; margin-bottom: 20px; }
+#grid {
+    display: grid;
+    grid-template-columns: repeat(10, 45px);
+    gap: 4px;
+    justify-content: center;
+    margin: 20px auto;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 10px;
+    border-radius: 10px;
+}
+.cell { 
+    width: 45px; 
+    height: 45px; 
+    background: rgba(255, 255, 255, 0.9); 
+    cursor: pointer; 
+    border-radius: 6px; 
+    transition: background 0.2s ease, transform 0.1s ease;
+}
+.cell:hover { transform: scale(1.05); }
+.wall { background: #2c3e50; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+.start { background: #00b894; box-shadow: 0 0 10px #00b894; }
+.end { background: #d63031; box-shadow: 0 0 10px #d63031; }
+.path { background: #fdcb6e; box-shadow: 0 0 10px #fdcb6e; }
+.controls { 
+    margin-top: 20px; 
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 15px;
+    align-items: center;
+}
+button, select {
+    padding: 12px 20px;
+    font-size: 15px;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: linear-gradient(to right, #4facfe 0%, #00f2fe 100%);
+    color: #0b1f38;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    outline: none;
+}
+button:hover { 
+    transform: translateY(-2px); 
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3); 
+}
+select { background: #ffffff; color: #333333; }
+#resultados { 
+    margin-top: 20px; 
+    font-size: 18px; 
+    font-weight: bold; 
+    min-height: 25px; 
+    color: #f1c40f;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Jogo do Robô</h1>
+    <p>Clique nos quadrados para criar obstáculos manuais ou use o gerador automático.</p>
+
+    <div class="controls">
+        <label>Dificuldade: </label>
+        <select id="dificuldade">
+            <option value="facil">Fácil</option>
+            <option value="medio">Médio</option>
+            <option value="dificil">Difícil</option>
+        </select>
+        <button onclick="gerarObstaculos()">Gerar Obstáculos</button>
+        <button onclick="resolver()">Resolver Caminho</button>
+        <button onclick="window.location.href='/'">Voltar ao Menu</button>
+    </div>
+
+    <div id="resultados"></div>
+    <div id="grid"></div>
+</div>
+
+<script>
+let rows=10;
+let cols=10;
+let grid=[];
+
+for(let i=0;i<rows;i++){
+    grid[i]=[];
+    for(let j=0;j<cols;j++){ grid[i][j]=0; }
+}
+
+let start=[0,0];
+let end=[9,9];
+const gridDiv=document.getElementById("grid");
+
+function draw(){
+    gridDiv.innerHTML="";
+    for(let i=0;i<rows;i++){
+        for(let j=0;j<cols;j++){
+            let cell=document.createElement("div");
+            cell.className="cell";
+            if(i==start[0] && j==start[1]) cell.classList.add("start");
+            else if(i==end[0] && j==end[1]) cell.classList.add("end");
+            else if(grid[i][j]==1) cell.classList.add("wall");
+            cell.onclick=()=>toggle(i,j);
+            gridDiv.appendChild(cell);
+        }
+    }
+}
+
+function toggle(i,j){
+    if((i==0 && j==0) || (i==9 && j==9)) return;
+    grid[i][j] = grid[i][j]==0 ? 1 : 0;
+    draw();
+}
+
+function gerarObstaculos(){
+    let dif = document.getElementById("dificuldade").value;
+    let prob = dif === "facil" ? 0.2 : (dif === "medio" ? 0.35 : 0.45);
+    for(let i=0; i<rows; i++){
+        for(let j=0; j<cols; j++){
+            if((i==0 && j==0) || (i==9 && j==9)) {
+                grid[i][j] = 0;
+                continue;
+            }
+            grid[i][j] = Math.random() < prob ? 1 : 0;
+        }
+    }
+    document.getElementById("resultados").innerText = "";
+    draw();
+}
+
+function resolver(){
+    fetch("/resolver",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({grid:grid})
+    })
+    .then(r=>r.json())
+    .then(data=>{
+        draw();
+        if(data.astar.length === 0){
+            alert("Caminho bloqueado! Não é possível chegar ao destino.");
+            return;
+        }
+        
+        document.getElementById("resultados").innerText = 
+            "Comparação de Rotas - Nós explorados: A* (" + data.nodes_astar + ") vs BFS (" + data.nodes_bfs + ")";
+
+        let cells=document.querySelectorAll(".cell");
+        data.astar.forEach((p, index)=>{
+            setTimeout(()=>{
+                if((p[0]!=start[0] || p[1]!=start[1]) && (p[0]!=end[0] || p[1]!=end[1])){
+                    let idx = p[0]*cols + p[1];
+                    cells[idx].classList.add("path");
+                }
+                if(index === data.astar.length - 1){
+                    setTimeout(() => alert("Destino alcançado com sucesso!"), 200);
+                }
+            }, index * 80);
+        });
+    });
+}
+draw();
+</script>
+</body>
+</html>
